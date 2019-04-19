@@ -514,15 +514,16 @@ public final class FST<T> implements Accountable {
 
   // serializes new node by appending its bytes to the end
   // of the current byte[]
+  //Michel:将新加入节点追加到字节数组尾部
   long addNode(Builder<T> builder, Builder.UnCompiledNode<T> nodeIn) throws IOException {
     T NO_OUTPUT = outputs.getNoOutput();
 
     //System.out.println("FST.addNode pos=" + bytes.getPosition() + " numArcs=" + nodeIn.numArcs);
     if (nodeIn.numArcs == 0) {
       if (nodeIn.isFinal) {
-        return FINAL_END_NODE;
+        return FINAL_END_NODE;//-1表示结束节点
       } else {
-        return NON_FINAL_END_NODE;
+        return NON_FINAL_END_NODE;//0为非结束节点（没有arcs的非结束节点应该不会有吧）
       }
     }
 

@@ -22,6 +22,8 @@ package org.apache.lucene.util;
  *  {@link #EMPTY_INTS} if necessary.
  *
  *  @lucene.internal */
+//Michel：代表一个int数组(fst的输入)
+//这个数组不是从开始位置就被使用的，因此使用offset表示起点位置，用length表示使用的长度
 public final class IntsRef implements Comparable<IntsRef>, Cloneable {
   /** An empty integer array for convenience */
   public static final int[] EMPTY_INTS = new int[0];
@@ -38,7 +40,7 @@ public final class IntsRef implements Comparable<IntsRef>, Cloneable {
     ints = EMPTY_INTS;
   }
 
-  /** 
+  /**
    * Create a IntsRef pointing to a new array of size <code>capacity</code>.
    * Offset and length will both be zero.
    */
@@ -60,9 +62,9 @@ public final class IntsRef implements Comparable<IntsRef>, Cloneable {
    * Returns a shallow clone of this instance (the underlying ints are
    * <b>not</b> copied and will be shared by both the returned object and this
    * object.
-   * 
+   *
    * @see #deepCopyOf
-   */  
+   */
   @Override
   public IntsRef clone() {
     return new IntsRef(ints, offset, length);
@@ -78,7 +80,7 @@ public final class IntsRef implements Comparable<IntsRef>, Cloneable {
     }
     return result;
   }
-  
+
   @Override
   public boolean equals(Object other) {
     if (other == null) {
@@ -91,17 +93,18 @@ public final class IntsRef implements Comparable<IntsRef>, Cloneable {
   }
 
   public boolean intsEquals(IntsRef other) {
-    return FutureArrays.equals(this.ints, this.offset, this.offset + this.length, 
+    return FutureArrays.equals(this.ints, this.offset, this.offset + this.length,
                                other.ints, other.offset, other.offset + other.length);
   }
 
   /** Signed int order comparison */
   @Override
   public int compareTo(IntsRef other) {
-    return FutureArrays.compare(this.ints, this.offset, this.offset + this.length, 
+    return FutureArrays.compare(this.ints, this.offset, this.offset + this.length,
                                 other.ints, other.offset, other.offset + other.length);
   }
 
+  //Michel:打印存储在其中的数字
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
@@ -116,21 +119,22 @@ public final class IntsRef implements Comparable<IntsRef>, Cloneable {
     sb.append(']');
     return sb.toString();
   }
-  
+
   /**
-   * Creates a new IntsRef that points to a copy of the ints from 
+   * Creates a new IntsRef that points to a copy of the ints from
    * <code>other</code>
    * <p>
    * The returned IntsRef will have a length of other.length
    * and an offset of zero.
    */
+  //Michel:深层复制一个IntsRef, 将offset置0（即将头部未使用区域利用起来）
   public static IntsRef deepCopyOf(IntsRef other) {
     return new IntsRef(ArrayUtil.copyOfSubArray(other.ints, other.offset, other.offset + other.length), 0, other.length);
   }
-  
-  /** 
+
+  /**
    * Performs internal consistency checks.
-   * Always returns true (or throws IllegalStateException) 
+   * Always returns true (or throws IllegalStateException)
    */
   public boolean isValid() {
     if (ints == null) {
@@ -139,7 +143,7 @@ public final class IntsRef implements Comparable<IntsRef>, Cloneable {
     if (length < 0) {
       throw new IllegalStateException("length is negative: " + length);
     }
-    if (length > ints.length) {
+    if (length > ints.length) {//Question：多此一举
       throw new IllegalStateException("length is out of bounds: " + length + ",ints.length=" + ints.length);
     }
     if (offset < 0) {

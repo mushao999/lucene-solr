@@ -316,9 +316,10 @@ public final class BlockTreeTermsWriter extends FieldsConsumer {
   }
 
   @Override
+  //Michel：入口
   public void write(Fields fields, NormsProducer norms) throws IOException {
     //if (DEBUG) System.out.println("\nBTTW.write seg=" + segment);
-
+    //Michel:field也要排序？
     String lastField = null;
     for(String field : fields) {
       assert lastField == null || lastField.compareTo(field) < 0;
@@ -341,7 +342,7 @@ public final class BlockTreeTermsWriter extends FieldsConsumer {
         }
 
         //if (DEBUG) System.out.println("write field=" + fieldInfo.name + " term=" + brToString(term));
-        termsWriter.write(term, termsEnum, norms);
+        termsWriter.write(term, termsEnum, norms);//Michel:真正发起写操作的调用
       }
 
       termsWriter.finish();
@@ -464,7 +465,7 @@ public final class BlockTreeTermsWriter extends FieldsConsumer {
       final byte[] bytes = new byte[(int) scratchBytes.getFilePointer()];
       assert bytes.length > 0;
       scratchBytes.writeTo(bytes, 0);
-      indexBuilder.add(Util.toIntsRef(prefix, scratchIntsRef), new BytesRef(bytes, 0, bytes.length));
+      indexBuilder.add(Util.toIntsRef(prefix, scratchIntsRef), new BytesRef(bytes, 0, bytes.length));//Michel:前缀写入tip文件中
       scratchBytes.reset();
 
       // Copy over index for all sub-blocks
@@ -631,7 +632,7 @@ public final class BlockTreeTermsWriter extends FieldsConsumer {
 
       assert firstBlock.isFloor || newBlocks.size() == 1;
 
-      firstBlock.compileIndex(newBlocks, scratchBytes, scratchIntsRef);
+      firstBlock.compileIndex(newBlocks, scratchBytes, scratchIntsRef);//如果可以生成一个block，则在tim文件中添加该block，在tip文件中添加其对应的前缀
 
       // Remove slice from the top of the pending stack, that we just wrote:
       pending.subList(pending.size()-count, pending.size()).clear();
@@ -867,7 +868,7 @@ public final class BlockTreeTermsWriter extends FieldsConsumer {
 
         assert state.docFreq != 0;
         assert fieldInfo.getIndexOptions() == IndexOptions.DOCS || state.totalTermFreq >= state.docFreq: "postingsWriter=" + postingsWriter;
-        pushTerm(text);
+        pushTerm(text);//Michel:对term进行分块，写入time文件，并写入tip文件索引
        
         PendingTerm term = new PendingTerm(text, state);
         pending.add(term);
@@ -903,7 +904,7 @@ public final class BlockTreeTermsWriter extends FieldsConsumer {
         int prefixTopSize = pending.size() - prefixStarts[i];
         if (prefixTopSize >= minItemsInBlock) {
           // if (DEBUG) System.out.println("pushTerm i=" + i + " prefixTopSize=" + prefixTopSize + " minItemsInBlock=" + minItemsInBlock);
-          writeBlocks(i+1, prefixTopSize);
+          writeBlocks(i+1, prefixTopSize);//Michel:对于达到写block标准的进行写block操作
           prefixStarts[i] -= prefixTopSize-1;
         }
       }

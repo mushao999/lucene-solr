@@ -177,6 +177,7 @@ public final class FutureArrays {
    * Behaves like Java 9's Arrays.compare
    * @see <a href="http://download.java.net/java/jdk9/docs/api/java/util/Arrays.html#compare-int:A-int-int-int:A-int-int-">Arrays.compare</a>
    */
+  //Michel:比较方式为比较第一个不一样的int，如果长度一样的部分都一样，则长度长的大
   public static int compare(int[] a, int aFromIndex, int aToIndex, int[] b, int bFromIndex, int bToIndex) {
     checkFromToIndex(aFromIndex, aToIndex, a.length);
     checkFromToIndex(bFromIndex, bToIndex, b.length);

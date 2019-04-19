@@ -57,12 +57,12 @@ public class Builder<T> {
 
   // simplistic pruning: we prune node (and all following
   // nodes) if less than this number of terms go through it:
-  private final int minSuffixCount1;
+  private final int minSuffixCount1;//Michel:最小后缀数，小于这个的必须为后缀
 
   // better pruning: we prune node (and all following
   // nodes) if the prior node has less than this number of
   // terms go through it:
-  private final int minSuffixCount2;
+  private final int minSuffixCount2;//Michel:忽略此选项，看到所有调用的地方，参数都是传递的0
 
   private final boolean doShareNonSingletonNodes;
   private final int shareMaxTailLength;
@@ -117,7 +117,7 @@ public class Builder<T> {
    * @param minSuffixCount2
    *    (Note: only Mike McCandless knows what this one is really doing...) 
    * 
-   * @param doShareSuffix 
+   * @param doShareSuffix
    *    If <code>true</code>, the shared suffixes will be compacted into unique paths.
    *    This requires an additional RAM-intensive hash map for lookups in memory. Setting this parameter to
    *    <code>false</code> creates a single suffix path for all input sequences. This will result in a larger
@@ -140,7 +140,7 @@ public class Builder<T> {
    * @param allowArrayArcs Pass false to disable the array arc optimization
    *    while building the FST; this will make the resulting
    *    FST smaller but slower to traverse.
-   *
+   * //Michel:Block大小
    * @param bytesPageBits How many bits wide to make each
    *    byte[] block in the BytesStore; if you know the FST
    *    will be large then make this larger.  For example 15
@@ -149,8 +149,8 @@ public class Builder<T> {
   public Builder(FST.INPUT_TYPE inputType, int minSuffixCount1, int minSuffixCount2, boolean doShareSuffix,
                  boolean doShareNonSingletonNodes, int shareMaxTailLength, Outputs<T> outputs,
                  boolean allowArrayArcs, int bytesPageBits) {
-    this.minSuffixCount1 = minSuffixCount1;
-    this.minSuffixCount2 = minSuffixCount2;
+    this.minSuffixCount1 = minSuffixCount1;//认为是0
+    this.minSuffixCount2 = minSuffixCount2;//认为是0
     this.doShareNonSingletonNodes = doShareNonSingletonNodes;
     this.shareMaxTailLength = shareMaxTailLength;
     this.allowArrayArcs = allowArrayArcs;
@@ -210,7 +210,7 @@ public class Builder<T> {
       assert bytesPosEnd > bytesPosStart;
       lastFrozenNode = node;
     }
-
+    //释放加入的节点
     nodeIn.clear();
 
     final CompiledNode fn = new CompiledNode();
@@ -220,18 +220,19 @@ public class Builder<T> {
 
   private void freezeTail(int prefixLenPlus1) throws IOException {
     //System.out.println("  compileTail " + prefixLenPlus1);
-    final int downTo = Math.max(1, prefixLenPlus1);
+    final int downTo = Math.max(1, prefixLenPlus1);//Michel:这个是finish时使用的
+    //Michel:从后向前遍历input
     for(int idx=lastInput.length(); idx >= downTo; idx--) {
 
-      boolean doPrune = false;
-      boolean doCompile = false;
-
+      boolean doPrune = false;//Michel:是否删除标志位
+      boolean doCompile = false;//Michel:是否compile标志位
+      //Michel:获取当前节点及其父节点
       final UnCompiledNode<T> node = frontier[idx];
       final UnCompiledNode<T> parent = frontier[idx-1];
 
-      if (node.inputCount < minSuffixCount1) {
-        doPrune = true;
-        doCompile = true;
+      if (node.inputCount < minSuffixCount1) {//Michel:小于最小后缀长度则直接通过作为后缀
+        doPrune = true;//Michel:修剪
+        doCompile = true;//Michel:编译
       } else if (idx > prefixLenPlus1) {
         // prune if parent's inputCount is less than suffixMinCount2
         if (parent.inputCount < minSuffixCount2 || (minSuffixCount2 == 1 && parent.inputCount == 1 && idx > 1)) {
@@ -252,14 +253,14 @@ public class Builder<T> {
           doPrune = false;
         }
         doCompile = true;
-      } else {
+      } else {//Michel：当等于prefixLenPlus1或1时
         // if pruning is disabled (count is 0) we can always
         // compile current node
         doCompile = minSuffixCount2 == 0;
       }
 
       //System.out.println("    label=" + ((char) lastInput.ints[lastInput.offset+idx-1]) + " idx=" + idx + " inputCount=" + frontier[idx].inputCount + " doCompile=" + doCompile + " doPrune=" + doPrune);
-
+      //Michel:清理所有arc??
       if (node.inputCount < minSuffixCount2 || (minSuffixCount2 == 1 && node.inputCount == 1 && idx > 1)) {
         // drop all arcs
         for(int arcIdx=0;arcIdx<node.numArcs;arcIdx++) {
@@ -269,11 +270,11 @@ public class Builder<T> {
         }
         node.numArcs = 0;
       }
-
+      //Michel:删除当前节点
       if (doPrune) {
         // this node doesn't make it -- deref it
         node.clear();
-        parent.deleteLast(lastInput.intAt(idx-1), node);
+        parent.deleteLast(lastInput.intAt(idx-1), node);//父节点清理与当前节点的弧
       } else {
 
         if (minSuffixCount2 != 0) {
@@ -287,19 +288,19 @@ public class Builder<T> {
         // FSTEnum, Util, etc., have trouble w/ non-final
         // dead-end states:
         final boolean isFinal = node.isFinal || node.numArcs == 0;
-
-        if (doCompile) {
+        //Michel:通过父节点更新当前节点
+        if (doCompile) {//Michel:如果需要编译
           // this node makes it and we now compile it.  first,
           // compile any targets that were previously
           // undecided:
-          parent.replaceLast(lastInput.intAt(idx-1),
+          parent.replaceLast(lastInput.intAt(idx-1),//Michel:将当前节点替换为一个编译过的节点
                              compileNode(node, 1+lastInput.length()-idx),
                              nextFinalOutput,
                              isFinal);
         } else {
           // replaceLast just to install
           // nextFinalOutput/isFinal onto the arc
-          parent.replaceLast(lastInput.intAt(idx-1),
+          parent.replaceLast(lastInput.intAt(idx-1),//Michel:还是自己，只是增加了output和是否为最后一个的表示
                              node,
                              nextFinalOutput,
                              isFinal);
@@ -307,7 +308,7 @@ public class Builder<T> {
           // undecided on whether to prune it.  later, it
           // will be either compiled or pruned, so we must
           // allocate a new node:
-          frontier[idx] = new UnCompiledNode<>(this, idx);
+          frontier[idx] = new UnCompiledNode<>(this, idx);//Michel:在这个位置生成新的UnCompiledNode节点
         }
       }
     }
@@ -352,13 +353,16 @@ public class Builder<T> {
     */
 
     // De-dup NO_OUTPUT since it must be a singleton:
+    //Question：为什么要保证NO_OUTPUT必须为单例
     if (output.equals(NO_OUTPUT)) {
       output = NO_OUTPUT;
     }
 
+    //Michel: 1. 验证输入必须为排序的
     assert lastInput.length() == 0 || input.compareTo(lastInput.get()) >= 0: "inputs are added out of order lastInput=" + lastInput.get() + " vs input=" + input;
+    //如果为空的话，必须为同一个，如果不是同一个对象，哪怕equals也不行:单例化空output
     assert validOutput(output);
-
+    //Michel: 2. 为空输入设置output
     //System.out.println("\nadd: " + input);
     if (input.length == 0) {
       // empty input: only allowed as first input.  we have
@@ -373,10 +377,11 @@ public class Builder<T> {
     }
 
     // compare shared prefix length
-    int pos1 = 0;
-    int pos2 = input.offset;
+    //Michel: 3. 获取lastinput与当前input相同的前缀长度
+    int pos1 = 0;//Michel:lastinput的游标
+    int pos2 = input.offset;//Michel:当前input的游标
     final int pos1Stop = Math.min(lastInput.length(), input.length);
-    while(true) {
+    while(true) {//Michel:两个同时后移，找到两者的共同前缀
       frontier[pos1].inputCount++;
       //System.out.println("  incr " + pos1 + " ct=" + frontier[pos1].inputCount + " n=" + frontier[pos1]);
       if (pos1 >= pos1Stop || lastInput.intAt(pos1) != input.ints[pos2]) {
@@ -386,7 +391,7 @@ public class Builder<T> {
       pos2++;
     }
     final int prefixLenPlus1 = pos1+1;
-      
+    //Michel:如果frontier长度不够则扩充长度，并初始化出UnCompiledNode
     if (frontier.length < input.length+1) {
       final UnCompiledNode<T>[] next = ArrayUtil.grow(frontier, input.length+1);
       for(int idx=frontier.length;idx<next.length;idx++) {
@@ -397,12 +402,14 @@ public class Builder<T> {
 
     // minimize/compile states from previous input's
     // orphan'd suffix
+    //Michel:冻结lastinput的尾部
     freezeTail(prefixLenPlus1);
 
     // init tail states for current input
+    //将当前front中的节点建立弧
     for(int idx=prefixLenPlus1;idx<=input.length;idx++) {
       frontier[idx-1].addArc(input.ints[input.offset + idx - 1],
-                             frontier[idx]);
+                             frontier[idx]);//前一项增加一个指向当前项的弧，label为前一项的int值，
       frontier[idx].inputCount++;
     }
 
@@ -414,11 +421,12 @@ public class Builder<T> {
 
     // push conflicting outputs forward, only as far as
     // needed
+    //不断把output向后推
     for(int idx=1;idx<prefixLenPlus1;idx++) {
       final UnCompiledNode<T> node = frontier[idx];
       final UnCompiledNode<T> parentNode = frontier[idx-1];
 
-      final T lastOutput = parentNode.getLastOutput(input.ints[input.offset + idx - 1]);
+      final T lastOutput = parentNode.getLastOutput(input.ints[input.offset + idx - 1]);//前一个节点的最后一个output其实就是之前已经计算好的output(相同的int)
       assert validOutput(lastOutput);
 
       final T commonOutputPrefix;
@@ -435,10 +443,10 @@ public class Builder<T> {
         commonOutputPrefix = wordSuffix = NO_OUTPUT;
       }
 
-      output = fst.outputs.subtract(output, commonOutputPrefix);
+      output = fst.outputs.subtract(output, commonOutputPrefix);//减去前缀中的公共部分
       assert validOutput(output);
     }
-
+    //Michel:如果输入了两个相同的输入，则映射多个output（取决于实现，默认返回不支持）
     if (lastInput.length() == input.length && prefixLenPlus1 == 1+input.length) {
       // same input more than 1 time in a row, mapping to
       // multiple outputs
@@ -450,7 +458,7 @@ public class Builder<T> {
     }
 
     // save last input
-    lastInput.copyInts(input);
+    lastInput.copyInts(input);//Michel:将当前input设置为lastInput
 
     //System.out.println("  count[0]=" + frontier[0].inputCount);
   }
@@ -499,7 +507,7 @@ public class Builder<T> {
       }
     }
   }
-
+  //Michel:边的定义
   /** Expert: holds a pending (seen but not yet serialized) arc. */
   public static class Arc<T> {
     public int label;                             // really an "unsigned" byte
@@ -512,7 +520,7 @@ public class Builder<T> {
   // NOTE: not many instances of Node or CompiledNode are in
   // memory while the FST is being built; it's only the
   // current "frontier":
-
+  //Michel:FST中的一个节点，需要提供该节点是否已经complile了
   static interface Node {
     boolean isCompiled();
   }
@@ -520,7 +528,7 @@ public class Builder<T> {
   public long fstRamBytesUsed() {
     return fst.ramBytesUsed();
   }
-
+  //Michel:已经compiled的Node
   static final class CompiledNode implements Node {
     long node;
     @Override
@@ -528,12 +536,12 @@ public class Builder<T> {
       return true;
     }
   }
-
+  //Michel：可见但没有序列化的节点
   /** Expert: holds a pending (seen but not yet serialized) Node. */
   public static final class UnCompiledNode<T> implements Node {
     final Builder<T> owner;
     public int numArcs;
-    public Arc<T>[] arcs;
+    public Arc<T>[] arcs;//Michel：关联的弧，只看后面的
     // TODO: instead of recording isFinal/output on the
     // node, maybe we should use -1 arc to mean "end" (like
     // we do when reading the FST).  Would simplify much
@@ -564,7 +572,7 @@ public class Builder<T> {
     public boolean isCompiled() {
       return false;
     }
-
+    //Michel:清空当前节点
     public void clear() {
       numArcs = 0;
       isFinal = false;
@@ -582,8 +590,10 @@ public class Builder<T> {
     }
 
     public void addArc(int label, Node target) {
-      assert label >= 0;
+      assert label >= 0;//label应该是正数
+      //弧要么为空，要么当前弧的lable要大于前一条弧的label，因为为按序排列的
       assert numArcs == 0 || label > arcs[numArcs-1].label: "arc[-1].label=" + arcs[numArcs-1].label + " new label=" + label + " numArcs=" + numArcs;
+      //如果弧已经满了，则扩容一下
       if (numArcs == arcs.length) {
         final Arc<T>[] newArcs = ArrayUtil.grow(arcs, numArcs+1);
         for(int arcIdx=numArcs;arcIdx<newArcs.length;arcIdx++) {
@@ -598,6 +608,7 @@ public class Builder<T> {
       arc.isFinal = false;
     }
 
+    //Michel:替换该节点的下一个节点（在下一个节点被处理过后调用）
     public void replaceLast(int labelToMatch, Node target, T nextFinalOutput, boolean isFinal) {
       assert numArcs > 0;
       final Arc<T> arc = arcs[numArcs-1];
